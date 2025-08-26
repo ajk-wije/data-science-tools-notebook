@@ -11,7 +11,6 @@ def _():
     from typing import Any
     from src.ocr_match.core import Config, ProtocolExtractor
     from src.ocr_match.db import DatabaseManager
-    import marimo as mo
 
     try:
         cfg = Config()
@@ -46,47 +45,46 @@ def _():
 
 @app.cell
 def _(cfg, dbm, extractor, pdf_files, initialization_success):
-    import marimo as mo
     
     if not initialization_success:
-        ui_display = mo.md("**Backend initialization failed. Check configuration paths.**")
+        ui_display = marimo.md("**Backend initialization failed. Check configuration paths.**")
         selector = None
         run_btn = None
     elif not pdf_files:
-        ui_display = mo.md("**No PDFs found. Set PDF_DIR env or update Config.**")
+        ui_display = marimo.md("**No PDFs found. Set PDF_DIR env or update Config.**")
         selector = None
         run_btn = None
     else:
         options = [f.name for f in pdf_files]
-        selector = mo.ui.select(options=options, value=options[0], label="Select PDF file:")
-        run_btn = mo.ui.button(label="Run Precision OCR Analysis", kind="success")
+        selector = marimo.ui.select(options=options, value=options[0], label="Select PDF file:")
 
-        ui_display = mo.vstack([
-            mo.md("### PDF File Selection"),
-            mo.md(f"**Available files:** {len(pdf_files)} PDFs found"),
+        ui_display = marimo.vstack([
+            marimo.md("### PDF File Selection"),
+            marimo.md(f"**Available files:** {len(pdf_files)} PDFs found"),
             selector,
-            mo.md("### Precision-Focused OCR"),
-            mo.md("**Goal:** Extract 9-digit codes with high precision (exact matches only)"),
-            run_btn
+            marimo.md("### Precision-Focused OCR"),
+            marimo.md("**Goal:** Extract 9-digit codes with high precision (exact matches only)"),
+            marimo.ui.button(label="Run Precision OCR Analysis", kind="success")
         ])
+
+        run_btn = ui_display.children[-1]
 
     return ui_display, selector, run_btn
 
 
 @app.cell  
 def _(cfg, dbm, extractor, pdf_files, run_btn, selector):
-    import marimo as mo
     
     if selector is None or run_btn is None:
-        result_display = mo.md("**UI not initialized properly**")
+        result_display = marimo.md("**UI not initialized properly**")
     elif not run_btn.value:
-        result_display = mo.md("**Click 'Run Precision OCR Analysis' to process the selected file**")
+        result_display = marimo.md("**Click 'Run Precision OCR Analysis' to process the selected file**")
     else:
         pdf_name = selector.value
         pdf_path = next((p for p in pdf_files if p.name == pdf_name), None)
 
         if pdf_path is None:
-            result_display = mo.md("**File not found.**")
+            result_display = marimo.md("**File not found.**")
         else:
             try:
                 print(f"Processing: {pdf_name}")
@@ -104,7 +102,7 @@ def _(cfg, dbm, extractor, pdf_files, run_btn, selector):
                     else:
                         precision_status = "NO DETECTION"
 
-                    result_display = mo.md(f"""
+                    result_display = marimo.md(f"""
 # {precision_status} OCR Results
 
 **File:** {pdf_name}  
@@ -114,10 +112,10 @@ def _(cfg, dbm, extractor, pdf_files, run_btn, selector):
 **Success:** {result['success']}
 """)
                 else:
-                    result_display = mo.md(f"**OCR Failed:** {result.get('error_message', 'Unknown error')}")
+                    result_display = marimo.md(f"**OCR Failed:** {result.get('error_message', 'Unknown error')}")
 
             except Exception as e:
-                result_display = mo.md(f"**Processing Error:** {str(e)}")
+                result_display = marimo.md(f"**Processing Error:** {str(e)}")
 
     return result_display
 
