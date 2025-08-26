@@ -65,6 +65,10 @@ def _():
 
 @app.cell
 def _(cfg, dbm, extractor, pdf_files, initialization_success):
+    # Debug: Check available UI components
+    print("Available marimo.ui components:")
+    print(dir(marimo.ui))
+    
     if not initialization_success:
         ui_display = marimo.md("**Backend initialization failed. Check configuration paths.**")
         selector = None
@@ -75,18 +79,41 @@ def _(cfg, dbm, extractor, pdf_files, initialization_success):
         run_btn = None
     else:
         options = [f.name for f in pdf_files]
-        selector = marimo.ui.select(options=options, value=options[0], label="Select PDF file:")
+        
+        # Try different UI components based on availability
+        try:
+            # First try dropdown
+            selector = marimo.ui.dropdown(options=options, value=options[0], label="Select PDF file:")
+        except AttributeError:
+            try:
+                # Fallback to radio buttons
+                selector = marimo.ui.radio(options=options, value=options[0], label="Select PDF file:")
+            except AttributeError:
+                # Final fallback - just use text and manual selection
+                selector = None
+                selected_file = options[0] if options else None
 
-        ui_display = marimo.vstack([
-            marimo.md("### PDF File Selection"),
-            marimo.md(f"**Available files:** {len(pdf_files)} PDFs found"),
-            selector,
-            marimo.md("### Precision-Focused OCR"),
-            marimo.md("**Goal:** Extract 9-digit codes with high precision (exact matches only)"),
-            marimo.ui.button(label="Run Precision OCR Analysis", kind="success")
-        ])
-
-        run_btn = ui_display.children[-1]
+        if selector is not None:
+            ui_display = marimo.vstack([
+                marimo.md("### PDF File Selection"),
+                marimo.md(f"**Available files:** {len(pdf_files)} PDFs found"),
+                selector,
+                marimo.md("### Precision-Focused OCR"),
+                marimo.md("**Goal:** Extract 9-digit codes with high precision (exact matches only)"),
+                marimo.ui.button(label="Run Precision OCR Analysis", kind="success")
+            ])
+            run_btn = ui_display.children[-1]
+        else:
+            # Fallback UI without selector
+            run_btn = marimo.ui.button(label="Run Precision OCR Analysis", kind="success")
+            ui_display = marimo.vstack([
+                marimo.md("### PDF File Selection"),
+                marimo.md(f"**Available files:** {len(pdf_files)} PDFs found"),
+                marimo.md(f"**Auto-selected:** {selected_file}"),
+                marimo.md("### Precision-Focused OCR"),
+                marimo.md("**Goal:** Extract 9-digit codes with high precision (exact matches only)"),
+                run_btn
+            ])
 
     return ui_display, selector, run_btn
 
@@ -98,29 +125,38 @@ def _(cfg, dbm, extractor, pdf_files, run_btn, selector):
     elif not run_btn.value:
         result_display = marimo.md("**Click 'Run Precision OCR Analysis' to process the selected file**")
     else:
-        pdf_name = selector.value
-        pdf_path = next((p for p in pdf_files if p.name == pdf_name), None)
-
-        if pdf_path is None:
-            result_display = marimo.md("**File not found.**")
+        # Get selected file
+        if selector is not None:
+            pdf_name = selector.value
         else:
-            try:
-                print(f"Processing: {pdf_name}")
-                result = extractor.process_pdf(pdf_path)
+            # Fallback to first file if no selector
+            pdf_name = pdf_files[0].name if pdf_files else None
+            
+        if pdf_name is None:
+            result_display = marimo.md("**No file available to process.**")
+        else:
+            pdf_path = next((p for p in pdf_files if p.name == pdf_name), None)
 
-                if result['success']:
-                    protocols = result['protocols']
-                    extraction_details = result.get('extraction_details', {})
-                    qa_probability = extraction_details.get('qa_probability', 0.0)
-                    
-                    if len(protocols) == 1 and qa_probability >= 0.85:
-                        precision_status = "HIGH PRECISION"
-                    elif len(protocols) > 0:
-                        precision_status = "MEDIUM PRECISION"
-                    else:
-                        precision_status = "NO DETECTION"
+            if pdf_path is None:
+                result_display = marimo.md("**File not found.**")
+            else:
+                try:
+                    print(f"Processing: {pdf_name}")
+                    result = extractor.process_pdf(pdf_path)
 
-                    result_display = marimo.md(f"""
+                    if result['success']:
+                        protocols = result['protocols']
+                        extraction_details = result.get('extraction_details', {})
+                        qa_probability = extraction_details.get('qa_probability', 0.0)
+                        
+                        if len(protocols) == 1 and qa_probability >= 0.85:
+                            precision_status = "HIGH PRECISION"
+                        elif len(protocols) > 0:
+                            precision_status = "MEDIUM PRECISION"
+                        else:
+                            precision_status = "NO DETECTION"
+
+                        result_display = marimo.md(f"""
 # {precision_status} OCR Results
 
 **File:** {pdf_name}  
@@ -129,11 +165,11 @@ def _(cfg, dbm, extractor, pdf_files, run_btn, selector):
 **QA Confidence:** {qa_probability:.3f}  
 **Success:** {result['success']}
 """)
-                else:
-                    result_display = marimo.md(f"**OCR Failed:** {result.get('error_message', 'Unknown error')}")
+                    else:
+                        result_display = marimo.md(f"**OCR Failed:** {result.get('error_message', 'Unknown error')}")
 
-            except Exception as e:
-                result_display = marimo.md(f"**Processing Error:** {str(e)}")
+                except Exception as e:
+                    result_display = marimo.md(f"**Processing Error:** {str(e)}")
 
     return result_display
 
