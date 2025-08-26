@@ -45,7 +45,6 @@ def _():
 
 @app.cell
 def _(cfg, dbm, extractor, pdf_files, initialization_success):
-    
     if not initialization_success:
         ui_display = marimo.md("**Backend initialization failed. Check configuration paths.**")
         selector = None
@@ -72,9 +71,8 @@ def _(cfg, dbm, extractor, pdf_files, initialization_success):
     return ui_display, selector, run_btn
 
 
-@app.cell  
+@app.cell
 def _(cfg, dbm, extractor, pdf_files, run_btn, selector):
-    
     if selector is None or run_btn is None:
         result_display = marimo.md("**UI not initialized properly**")
     elif not run_btn.value:
