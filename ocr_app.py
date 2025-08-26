@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import marimo
 
 __generated_with = "0.14.16"
@@ -8,12 +7,6 @@ app = marimo.App(width="medium")
 
 @app.cell
 def _():
-    """
-    Precision-Focused OCR App
-    
-    Select a PDF from Config.PDF_DIR, run hybrid OCR (PaddleOCR + Textract fallback),
-    with QA gate decisions and precision-focused analysis.
-    """
     from pathlib import Path
     from typing import Any
     from src.ocr_match.core import Config, ProtocolExtractor
@@ -25,7 +18,6 @@ def _():
         extractor = ProtocolExtractor(cfg)
         dbm = DatabaseManager(cfg)
 
-        # Check if paths exist
         pdf_dir_exists = cfg.PDF_DIR.exists()
         db_file_exists = cfg.DATABASE_PATH.exists()
 
@@ -54,7 +46,6 @@ def _():
 
 @app.cell
 def _(cfg, dbm, extractor, pdf_files, initialization_success):
-    """File selection UI with error handling"""
     import marimo as mo
     
     if not initialization_success:
@@ -69,29 +60,22 @@ def _(cfg, dbm, extractor, pdf_files, initialization_success):
         options = [f.name for f in pdf_files]
         selector = mo.ui.select(options=options, value=options[0], label="Select PDF file:")
 
-        file_selection_ui = mo.vstack([
+        ui_display = mo.vstack([
             mo.md("### PDF File Selection"),
             mo.md(f"**Available files:** {len(pdf_files)} PDFs found"),
-            selector
-        ])
-
-        run_btn = mo.ui.button(label="Run Precision OCR Analysis", kind="success")
-
-        ocr_ui = mo.vstack([
+            selector,
             mo.md("### Precision-Focused OCR"),
             mo.md("**Goal:** Extract 9-digit codes with high precision (exact matches only)"),
-            run_btn
+            mo.ui.button(label="Run Precision OCR Analysis", kind="success")
         ])
 
-        ui_display = mo.vstack([file_selection_ui, ocr_ui])
+        run_btn = ui_display.children[-1]
 
     return ui_display, selector, run_btn
 
 
-@app.cell
+@app.cell  
 def _(cfg, dbm, extractor, pdf_files, run_btn, selector):
-    """Precision-focused OCR processing with detailed results"""
-    from pathlib import Path
     import marimo as mo
     
     if selector is None or run_btn is None:
@@ -107,20 +91,13 @@ def _(cfg, dbm, extractor, pdf_files, run_btn, selector):
         else:
             try:
                 print(f"Processing: {pdf_name}")
-                print("=" * 50)
-
-                # Process PDF with precision-focused approach
                 result = extractor.process_pdf(pdf_path)
 
-                # Display precision-focused results
                 if result['success']:
                     protocols = result['protocols']
                     extraction_details = result.get('extraction_details', {})
                     qa_probability = extraction_details.get('qa_probability', 0.0)
-                    qa_action = extraction_details.get('qa_action', 'unknown')
-                    source = extraction_details.get('source', 'unknown')
-
-                    # Determine precision status
+                    
                     if len(protocols) == 1 and qa_probability >= 0.85:
                         precision_status = "HIGH PRECISION"
                     elif len(protocols) > 0:
@@ -128,113 +105,20 @@ def _(cfg, dbm, extractor, pdf_files, run_btn, selector):
                     else:
                         precision_status = "NO DETECTION"
 
-                    result_md = f"""
-## {precision_status} Precision OCR Results for `{pdf_name}`
-
-### Processing Summary
-- **Status:** {precision_status}
-- **Success:** {result['success']}
-- **Processing Time:** {result['processing_time']:.2f}s
-- **OCR Source:** {source}
-
-### Precision Metrics
-- **Protocols Detected:** {len(protocols)}
-- **QA Confidence:** {qa_probability:.3f}
-- **QA Decision:** {qa_action}
-- **Protocols:** `{protocols if protocols else 'None'}`
-
-### Quality Assessment
-"""
-
-                    if protocols:
-                        result_md += f"""
-- **Single Detection:** {'EXACT' if len(protocols) == 1 else 'NOT EXACT'} (Preferred for precision)
-- **High Confidence:** {'HIGH' if qa_probability >= 0.85 else 'LOWER THAN 0.85'} (Target: >0.85)
-- **QA Approved:** {'APPROVED' if qa_action == 'accept' else 'NOT APPROVED'} (QA gate decision)
-"""
-                    else:
-                        result_md += """
-- **No Detection:** (Better than wrong detection for precision)
-- **QA Decision:** No protocols to evaluate
-"""
-
-                    result_md += """
-
-### Cache Performance
-"""
-
-                    cache_perf = result.get('cache_performance', {})
-                    if cache_perf:
-                        result_md += f"""
-- **Cache Hits:** {cache_perf.get('cache_hits', 0)}
-- **API Calls:** {cache_perf.get('api_calls', 0)}
-- **Hit Rate:** {cache_perf.get('cache_hit_rate', 0):.1f}%
-- **Estimated Cost:** ${cache_perf.get('estimated_cost', 0):.3f}
-"""
-                    else:
-                        result_md += "- **Cache Info:** Not available"
-
-                    # Attempt DB match on top prediction if present
-                    if result['protocols'] and dbm:
-                        try:
-                            top_protocol = result['protocols'][0]
-                            wi_stem = Path(pdf_name).stem
-                            match = dbm.lookup_protocol(wi_stem, top_protocol)
-
-                            result_md += "\n### Database Matching\n"
-
-                            if match['status'] == 'success':
-                                result_md += f"""
-**Database Match Found**
-- **Input Protocol:** `{match['input_protocol']}`
-- **Matched Protocol:** `{match['matched_protocol']}`
-- **Match Type:** {match['match_type']}
-- **Confidence Score:** {match['match_score']:.3f}
-"""
-                            else:
-                                result_md += f"""
-**No Database Match**
-- **Input Protocol:** `{match['input_protocol']}`
-- **Status:** {match['status']}
-- **Error:** {match.get('error_message', 'No match found')}
-"""
-
-                        except Exception as e:
-                            result_md += f"\n### Database Matching\n**Database matching error:** {e}"
-
-                    mo.md(result_md)
-
-                else:
-                    # Handle failure case
-                    error_msg = result.get('error_message', 'Unknown error')
                     mo.md(f"""
-## OCR Processing Failed
+# {precision_status} OCR Results
 
-**File:** `{pdf_name}`
-**Error:** {error_msg}
-**Processing Time:** {result['processing_time']:.2f}s
-
-**Troubleshooting:**
-- Check if PDF contains clear 9-digit handwritten codes
-- Verify handwriting is legible
-- Consider if protocol might be at unusual angle
-- Review OCR cache for this file
+**File:** {pdf_name}  
+**Status:** {precision_status}  
+**Protocols:** {protocols if protocols else 'None'}  
+**QA Confidence:** {qa_probability:.3f}  
+**Success:** {result['success']}
 """)
+                else:
+                    mo.md(f"**OCR Failed:** {result.get('error_message', 'Unknown error')}")
 
             except Exception as e:
-                print(f"Processing error: {e}")
-                mo.md(f"""
-## Processing Error
-
-**File:** `{pdf_name}`
-**Error:** {str(e)}
-
-**Check:**
-- Backend initialization
-- File accessibility
-- AWS credentials (if using Textract)
-- System resources
-""")
+                mo.md(f"**Processing Error:** {str(e)}")
 
 
 if __name__ == "__main__":
