@@ -7,8 +7,28 @@ app = marimo.App(width="medium")
 
 @app.cell
 def _():
+    import sys
+    import os
     from pathlib import Path
     from typing import Any
+    
+    # Add project root to Python path for imports
+    # Navigate from current working directory to project root
+    current_dir = Path.cwd()
+    
+    # Look for the project root (where src/ directory exists)
+    project_root = current_dir
+    while project_root != project_root.parent:
+        if (project_root / "src").exists():
+            break
+        project_root = project_root.parent
+    
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+    
+    print(f"Project root: {project_root}")
+    print(f"Python path updated: {str(project_root) in sys.path}")
+    
     from src.ocr_match.core import Config, ProtocolExtractor
     from src.ocr_match.db import DatabaseManager
 
