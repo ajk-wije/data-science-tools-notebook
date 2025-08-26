@@ -1,9 +1,3 @@
-"""
-Precision-Focused OCR App
-
-Select a PDF from Config.PDF_DIR, run hybrid OCR (PaddleOCR + Textract fallback),
-with QA gate decisions and precision-focused analysis.
-"""
 from __future__ import annotations
 
 import marimo
@@ -14,6 +8,12 @@ app = marimo.App(width="medium")
 
 @app.cell
 def _():
+    """
+    Precision-Focused OCR App
+    
+    Select a PDF from Config.PDF_DIR, run hybrid OCR (PaddleOCR + Textract fallback),
+    with QA gate decisions and precision-focused analysis.
+    """
     from pathlib import Path
     from typing import Any
     from src.ocr_match.core import Config, ProtocolExtractor
@@ -25,6 +25,7 @@ def _():
         extractor = ProtocolExtractor(cfg)
         dbm = DatabaseManager(cfg)
 
+        # Check if paths exist
         pdf_dir_exists = cfg.PDF_DIR.exists()
         db_file_exists = cfg.DATABASE_PATH.exists()
 
@@ -53,6 +54,7 @@ def _():
 
 @app.cell
 def _(cfg, dbm, extractor, pdf_files, initialization_success):
+    """File selection UI with error handling"""
     import marimo as mo
     
     if not initialization_success:
@@ -88,6 +90,7 @@ def _(cfg, dbm, extractor, pdf_files, initialization_success):
 
 @app.cell
 def _(cfg, dbm, extractor, pdf_files, run_btn, selector):
+    """Precision-focused OCR processing with detailed results"""
     from pathlib import Path
     import marimo as mo
     
@@ -106,8 +109,10 @@ def _(cfg, dbm, extractor, pdf_files, run_btn, selector):
                 print(f"Processing: {pdf_name}")
                 print("=" * 50)
 
+                # Process PDF with precision-focused approach
                 result = extractor.process_pdf(pdf_path)
 
+                # Display precision-focused results
                 if result['success']:
                     protocols = result['protocols']
                     extraction_details = result.get('extraction_details', {})
@@ -115,6 +120,7 @@ def _(cfg, dbm, extractor, pdf_files, run_btn, selector):
                     qa_action = extraction_details.get('qa_action', 'unknown')
                     source = extraction_details.get('source', 'unknown')
 
+                    # Determine precision status
                     if len(protocols) == 1 and qa_probability >= 0.85:
                         precision_status = "HIGH PRECISION"
                     elif len(protocols) > 0:
@@ -168,6 +174,7 @@ def _(cfg, dbm, extractor, pdf_files, run_btn, selector):
                     else:
                         result_md += "- **Cache Info:** Not available"
 
+                    # Attempt DB match on top prediction if present
                     if result['protocols'] and dbm:
                         try:
                             top_protocol = result['protocols'][0]
@@ -198,6 +205,7 @@ def _(cfg, dbm, extractor, pdf_files, run_btn, selector):
                     mo.md(result_md)
 
                 else:
+                    # Handle failure case
                     error_msg = result.get('error_message', 'Unknown error')
                     mo.md(f"""
 ## OCR Processing Failed
